@@ -19,9 +19,10 @@
     <p>Connectez-vous pour accéder à la plateforme.</p>
     <form id="auth-form">
       <label for="auth-username">Identifiant</label>
-      <input id="auth-username" name="username" autocomplete="username" required autofocus>
+      <input id="auth-username" name="username" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false" required>
       <label for="auth-password">Mot de passe</label>
-      <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
+      <input id="auth-password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <label class="auth-show" for="auth-show-password"><input id="auth-show-password" type="checkbox">Afficher le mot de passe</label>
       <p id="auth-error" class="auth-error" role="alert" hidden></p>
       <button id="auth-submit" class="primary" type="submit">Se connecter</button>
     </form>

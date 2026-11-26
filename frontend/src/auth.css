@@ -9,6 +9,8 @@
 .auth-card label{font-size:11px;font-weight:700;color:#40556a}
 .auth-card input{width:100%;min-height:40px;margin-bottom:10px;padding:8px 10px;border:1px solid #b9c7d3;border-radius:4px;background:#fff;color:#26394b;font-size:13px}
 .auth-card input:focus{border-color:#477da9;outline:2px solid #b7d5eb;outline-offset:1px}
+.auth-card .auth-show{display:flex;align-items:center;gap:6px;margin:-2px 0 7px;font-size:11px;font-weight:550;color:#526579;cursor:pointer}
+.auth-card .auth-show input{width:14px;height:14px;min-height:0;margin:0;accent-color:#336f9e}
 .auth-card button{min-height:40px;margin-top:5px;border-radius:4px;font-size:12px;font-weight:700}
 .auth-error{margin:0;padding:10px 11px;background:#fff1f0;border:1px solid #e8b5ae;border-radius:4px;color:#8d322b;font-size:11px;line-height:1.45}
 .top-actions{display:flex;align-items:center;gap:12px}

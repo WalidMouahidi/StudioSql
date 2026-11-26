@@ -24,8 +24,10 @@ function showLogin(message = "") {
   $("auth-screen").hidden = false;
   $("auth-error").hidden = !message;
   $("auth-error").textContent = message;
+  $("auth-show-password").checked = false;
+  $("auth-password").type = "password";
   $("auth-password").value = "";
-  $("auth-username").focus();
+  $("auth-password").focus();
 }
 
 function showApp(session) {
@@ -35,6 +37,8 @@ function showApp(session) {
   $("auth-screen").hidden = true;
   $("auth-loading").hidden = true;
   $("app-shell").hidden = false;
+  $("auth-show-password").checked = false;
+  $("auth-password").type = "password";
 }
 
 async function checkSession() {
@@ -617,7 +621,7 @@ $("auth-form").onsubmit = async event => {
   try {
     const response = await fetch("/auth/login", {
       method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({username:$("auth-username").value, password:$("auth-password").value})
+      body:JSON.stringify({username:$("auth-username").value.trim(), password:$("auth-password").value})
     });
     const session = await response.json();
     if (!response.ok) throw new Error(session.detail || "Connexion impossible.");
@@ -630,6 +634,9 @@ $("auth-form").onsubmit = async event => {
   } finally {
     button.disabled = false;
   }
+};
+$("auth-show-password").onchange = () => {
+  $("auth-password").type = $("auth-show-password").checked ? "text" : "password";
 };
 $("logout-button").onclick = async () => {
   try { await api("/auth/logout", {}); showLogin(); }
