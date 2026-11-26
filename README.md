@@ -43,6 +43,12 @@ Docker Desktop doit utiliser des conteneurs Linux. SQL Server Developer cible Li
 
 Copier `.env.example` vers `.env`, puis définir `STUDIOSQL_ADMIN_PASSWORD` avec un mot de passe de 12 caractères minimum. Le compte par défaut est `admin`. Le fichier `.env` reste local et n'est pas publié dans Git.
 
+Pour copier uniquement le mot de passe dans le presse-papiers depuis la racine du projet (PowerShell), exécuter la commande suivante, puis le coller dans le formulaire de connexion. Ne pas copier le préfixe `STUDIOSQL_ADMIN_PASSWORD=`.
+
+```powershell
+((Get-Content .env | Select-String '^STUDIOSQL_ADMIN_PASSWORD=').Line -replace '^STUDIOSQL_ADMIN_PASSWORD=', '') | Set-Clipboard
+```
+
 ```powershell
 docker compose up --build -d
 docker compose logs -f api
