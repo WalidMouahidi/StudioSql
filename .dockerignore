@@ -1,0 +1,10 @@
+.git
+.env
+__pycache__
+results
+web
+frontend
+minio
+trino
+data/results
+__pycache__

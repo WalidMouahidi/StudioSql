@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Platform</title>
+<link rel="stylesheet" href="/src/style.css">
+<link rel="stylesheet" href="/src/wireframe.css">
+<link rel="stylesheet" href="/src/workspace.css">
+<script type="module" src="/src/app.js"></script>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 8 8 4 8-4M4 16l8 4 8-4"/></svg></span><div>Data Platform</div></div>
+  <nav aria-label="Navigation principale">
+    <a href="#sources" data-page="sources"><span class="wire-icon database" aria-hidden="true"></span> Data Sources</a>
+    <a href="#workspace" data-page="workspace"><span class="wire-icon explorer" aria-hidden="true"></span> Studio SQL</a>
+    <a href="#overview" data-page="overview"><span class="wire-icon storage" aria-hidden="true"></span> Storage</a>
+    <a href="#performance" data-page="performance"><span aria-hidden="true">▥</span> Performances</a>
+  </nav>
+  <div class="sidebar-footer"><a href="/docs">Documentation API</a><p id="health">Vérification des services…</p></div>
+</aside>
+<main id="main">
+  <header class="top"><span id="breadcrumb">Data Sources</span><span class="local"><span class="workspace-mark" aria-hidden="true">DL</span> Docker local</span></header>
+  <div id="notice" role="status" hidden></div>
+  <section id="overview" class="page" hidden>
+    <div class="card"><div class="card-head"><h2>Extractions récentes</h2><a href="#history">Voir l’historique</a></div><div id="recent"></div></div>
+  </section>
+  <section id="sources" class="page" hidden>
+    <div class="page-head">
+      <div><h1>Data Sources</h1></div>
+      <a class="button primary" href="#source-new"><span class="wire-icon plus" aria-hidden="true"></span>Ajouter une source</a>
+    </div>
+    <div id="source-toolbar" class="source-toolbar" hidden>
+      <label class="search"><span class="wire-icon search-icon" aria-hidden="true"></span><input id="source-search" type="search" aria-label="Rechercher une source de données" placeholder="Rechercher par nom, hôte ou base"></label>
+      <div class="source-filters" id="source-filters" aria-label="Filtrer par statut"></div>
+    </div>
+    <div id="source-list"></div>
+  </section>
+  <section id="workspace" class="page workspace-page" hidden>
+    <div class="workspace-heading"><h1>Studio</h1></div>
+    <div class="studio-layout">
+      <aside class="studio-browser" aria-label="Explorateur d'objets">
+        <div class="studio-pane-head"><strong>Explorateur d’objets</strong></div>
+        <label class="studio-source-label">Connexion<select id="source"></select></label>
+        <div class="studio-tree-label">Tables disponibles</div>
+        <select id="table" hidden aria-label="Table sélectionnée"></select>
+        <div id="table-tree" class="studio-tree" role="tree"></div>
+        <div class="studio-browser-footer"><button id="refresh-tables" class="secondary" type="button">Actualiser</button><button id="test-source" class="secondary" type="button">Tester</button></div>
+      </aside>
+      <div class="studio-main">
+        <div class="studio-object-bar"><div><span class="studio-eyebrow">OBJET SÉLECTIONNÉ</span><strong id="selection">Choisissez une table</strong></div></div>
+        <div class="studio-tabs" role="tablist" aria-label="Outils de données">
+          <button type="button" data-studio-tab="structure" role="tab" aria-selected="true">Structure</button>
+          <button type="button" data-studio-tab="extract" role="tab" aria-selected="false">Extraction</button>
+          <button type="button" data-studio-tab="sql" role="tab" aria-selected="false">Éditeur SQL</button>
+          <button type="button" data-studio-tab="history" role="tab" aria-selected="false">Historique</button>
+        </div>
+        <div id="studio-structure" class="studio-panel" role="tabpanel"><div class="studio-panel-head"><h2>Colonnes de la table</h2><span>Schéma SQL Server</span></div><div id="columns"></div></div>
+        <div id="studio-extract" class="studio-panel" role="tabpanel" hidden>
+          <div class="studio-panel-head"><h2>Nouvelle extraction</h2></div>
+          <form id="job-form">
+            <div class="fields"><label>Format<select name="format" id="format"><option value="parquet">Parquet</option><option value="csv">CSV</option></select></label>
+            <label>Compression<select name="compression" id="compression"></select></label>
+            <label>Taille du lot<input name="batch_size" type="number" min="1" max="250000" value="50000" required></label></div>
+            <fieldset><legend>Partition par jour</legend><div id="partitions"></div></fieldset>
+            <button class="primary" id="submit-job">Lancer l’extraction</button>
+          </form>
+        </div>
+        <div id="studio-sql" class="studio-panel" role="tabpanel" hidden>
+          <div class="studio-panel-head"><h2>Éditeur SQL</h2><span>Catalogue lake · schéma billing</span></div>
+          <form id="sql-form">
+            <div class="studio-query-toolbar"><label>Export terminé<select id="sql-export"></select></label><button class="secondary" id="query-preview" type="button">Aperçu</button><button class="secondary" id="query-count" type="button">Compter</button></div>
+            <div class="studio-query-filter"><label>Colonne de partition<select id="sql-partition"></select></label><label>Filtrer par date<input id="sql-date" type="date"></label></div>
+            <label class="studio-editor-label" for="sql-editor">Requête SQL</label><textarea id="sql-editor" spellcheck="false" placeholder="SELECT * FROM lake.billing.job_... LIMIT 100;" required></textarea>
+            <div class="studio-query-actions"><span>Requêtes de lecture · 200 lignes affichées au maximum</span><button id="run-query" class="primary" type="submit">▶ Exécuter</button></div>
+          </form>
+          <div class="studio-results" id="sql-output" hidden></div>
+        </div>
+        <section id="studio-history" class="studio-panel studio-history" role="tabpanel" aria-label="Historique des extractions" hidden><div class="studio-panel-head"><div><h2>Historique des extractions</h2><span>Jobs enregistrés et résultats disponibles</span></div><button class="secondary" id="refresh-jobs" type="button">Actualiser</button></div><div id="job-list"></div><div id="job-details" hidden></div></section>
+      </div>
+    </div>
+  </section>
+  <section id="source-new" class="page" hidden>
+    <h1>Ajouter une connexion SQL Server</h1><p class="muted intro">Saisissez les informations nécessaires pour joindre votre base. Testez la connexion avant de l’enregistrer pour vérifier qu’elle fonctionne.</p>
+    <div class="connection-layout">
+      <form class="card connection-form" id="source-form">
+        <div id="draft-alert" class="draft-alert" role="alert" hidden></div>
+        <fieldset class="form-section"><legend>Connexion</legend><p class="muted">La façon dont cette source apparaît dans la plateforme.</p>
+          <div class="fields"><label>Type de base de données<input value="Microsoft SQL Server" readonly></label>
+          <label>Nom de la connexion<input name="id" required pattern="[A-Za-z0-9_\-]{1,64}" placeholder="compta"><small>Nom unique, affiché dans les listes et les jobs.</small></label></div>
+        </fieldset>
+        <fieldset class="form-section"><legend>Serveur</legend><p class="muted">L’emplacement où la base est hébergée.</p>
+          <div class="fields server-fields"><label>Serveur / Hôte<input name="host" required placeholder="host.docker.internal"><small>Nom d’hôte ou adresse IP.</small></label>
+          <label>Port<input name="port" type="number" value="1433" required min="1" max="65535"><small>1433 par défaut.</small></label></div>
+          <div class="fields"><label>Nom de la base de données<input name="database" required placeholder="Billing"></label></div>
+        </fieldset>
+        <fieldset class="form-section"><legend>Authentification</legend><p class="muted">Le compte utilisé par la plateforme pour lire la base.</p>
+          <div class="fields"><label>Méthode d’authentification<input value="Authentification SQL Server" readonly></label></div>
+          <div class="fields"><label>Nom d’utilisateur<input name="user" required autocomplete="username"></label>
+          <label>Mot de passe<span class="password-control"><input name="password" type="password" required autocomplete="new-password"><button type="button" id="toggle-password" aria-label="Afficher le mot de passe" aria-pressed="false"><span class="wire-icon eye" aria-hidden="true"></span></button></span></label></div>
+        </fieldset>
+        <details class="advanced"><summary>Paramètres avancés <span class="muted">(facultatif)</span></summary><p class="advanced-note muted">Chiffrement et délai de connexion.</p>
+          <div class="fields"><label>Chiffrement<select name="encryption"><option value="">Paramètre du pilote</option><option value="require">Exiger le chiffrement</option></select></label>
+          <label>Délai de connexion (secondes)<input name="login_timeout" type="number" value="5" required min="1" max="60"></label></div>
+        </details>
+        <div class="form-footer"><a href="#sources" id="cancel-source">Annuler</a><span id="draft-footer-state" class="draft-footer-state"></span><div class="actions"><button class="secondary" type="button" id="test-draft"><span class="wire-icon jobs" aria-hidden="true"></span>Tester la connexion</button><button class="primary" id="save-source">Enregistrer la connexion</button></div></div>
+      </form>
+      <aside class="card connection-result"><h2>Test de connexion</h2><div id="draft-result" aria-live="polite"></div></aside>
+    </div>
+  </section>
+  <section id="performance" class="page" hidden>
+    <h1>Performances</h1><p class="muted intro">Compare les mesures de la campagne sur les factures fictives.</p>
+    <div class="metrics" id="benchmark-metrics"></div>
+    <div class="card"><div class="card-head"><h2>Scénarios mesurés</h2><div class="actions"><a class="button secondary" href="/performance/download/csv">Télécharger le CSV</a><a class="button secondary" href="/performance/download/md">Rapport complet</a></div></div>
+      <div class="fields"><label>Format<select id="bench-format"><option value="">Tous</option><option value="csv">CSV</option><option value="parquet">Parquet</option></select></label>
+      <label>Partition<select id="bench-partition"><option value="">Toutes</option><option value="jour">Par jour</option><option value="non">Aucune</option></select></label>
+      <label>Compression<select id="bench-compression"><option value="">Toutes</option><option value="gzip">Gzip</option><option value="none">Aucune</option></select></label>
+      <label>Taille du lot<select id="bench-batch"><option value="">Toutes</option></select></label></div>
+      <div id="benchmark-table"></div>
+      <p class="muted">Les temps SQL sont des médianes après chauffe. Le chargement couvre la sérialisation, le transfert et le catalogue.</p>
+    </div>
+    <div class="card"><h2>Écarts observés</h2><div id="benchmark-insights"></div></div>
+  </section>
+</main>
+</div>
+</body>
+</html>

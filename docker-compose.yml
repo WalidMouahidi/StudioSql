@@ -1,0 +1,57 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "LocalSql_2026!"
+    volumes:
+      - sql-data:/var/opt/mssql
+
+  minio:
+    build: ./docker/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: localadmin
+      MINIO_ROOT_PASSWORD: localminio2026
+    ports:
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - object-data:/data
+
+  trino:
+    image: trinodb/trino:476
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./docker/trino/catalog/lake.properties:/etc/trino/catalog/lake.properties:ro
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "127.0.0.1:8002:8000"
+    environment:
+      SQL_SOURCES: '${SQL_SOURCES:-[{"id":"sqlserver","host":"sqlserver","user":"sa","password":"LocalSql_2026!","database":"Billing"}]}'
+      SEED_DEMO: "${SEED_DEMO:-1}"
+      DEMO_INVOICES: "${DEMO_INVOICES:-1000000}"
+    depends_on:
+      - sqlserver
+      - minio
+      - trino
+    volumes:
+      - job-data:/state
+      - ./data/results:/results
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8000:80"
+    depends_on:
+      - api
+
+volumes:
+  sql-data:
+  object-data:
+  job-data:
