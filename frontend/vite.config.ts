@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: Object.fromEntries(
-      ['/health', '/sources', '/storage', '/analysis', '/performance', '/sql', '/docs', '/openapi.json']
+      ['/auth', '/health', '/sources', '/storage', '/analysis', '/performance', '/sql', '/docs', '/openapi.json', '/redoc']
         .map((path) => [path, api]),
     ),
   },

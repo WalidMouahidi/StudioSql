@@ -2,6 +2,10 @@
 
 Le service FastAPI découvre les tables SQL Server et extrait une table à la fois avec un curseur par lots. Il écrit des objets Parquet ou CSV dans MinIO puis crée une table externe dans le catalogue Hive `lake` de Trino. Le métastore Hive sur fichiers est persisté dans MinIO sous `s3://warehouse/catalog/`. Les jobs et leurs résultats sont persistés dans SQLite.
 
+## Références pour comprendre et faire évoluer le projet
+
+Commencer par le [contexte technique court](CONTEXT.md) avant de parcourir le code. Les vues d'[architecture système](docs/architecture/system.md) et de [flux de données](docs/architecture/data-flow.md) décrivent les composants et le parcours d'un job. Le [registre des décisions](docs/decisions/README.md) explique les choix techniques en vigueur ; le [suivi d'évolution](docs/evolution.md) sépare les capacités implémentées des pistes à étudier. Les [consignes du dépôt](AGENTS.md) indiquent comment maintenir ces références à jour.
+
 ## Structure
 
 ```text
