@@ -34,6 +34,10 @@ class LoginBody(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class ProfileBody(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+
+
 def initialize_auth():
     with state() as db:
         db.execute("""
@@ -45,6 +49,40 @@ def initialize_auth():
             )
         """)
         db.execute("DELETE FROM auth_sessions")
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS auth_profiles (
+                username TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+        """)
+        now = int(time.time())
+        db.execute(
+            "INSERT OR IGNORE INTO auth_profiles (username, display_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+            (USERNAME, USERNAME, now, now),
+        )
+
+
+def profile_details(username: str, expires_at: int):
+    with state() as db:
+        profile = db.execute(
+            "SELECT display_name, created_at, updated_at FROM auth_profiles WHERE username = ?",
+            (username,),
+        ).fetchone()
+        sessions = db.execute(
+            "SELECT count(*) FROM auth_sessions WHERE username = ? AND expires_at > ?",
+            (username, int(time.time())),
+        ).fetchone()[0]
+    return {
+        "username": username,
+        "display_name": profile["display_name"],
+        "role": "Administrateur",
+        "created_at": profile["created_at"],
+        "updated_at": profile["updated_at"],
+        "session_expires_at": expires_at,
+        "active_sessions": sessions,
+    }
 
 
 def session_for(request: Request):
@@ -106,14 +144,15 @@ def login(body: LoginBody, request: Request):
     clear_attempts(key)
     token = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
+    expires_at = int(time.time()) + SESSION_SECONDS
     with state() as db:
         db.execute("DELETE FROM auth_sessions WHERE expires_at <= ?", (int(time.time()),))
         db.execute(
             "INSERT INTO auth_sessions (token_hash, username, csrf_token, expires_at) VALUES (?, ?, ?, ?)",
             (hashlib.sha256(token.encode()).hexdigest(), USERNAME, csrf_token,
-             int(time.time()) + SESSION_SECONDS),
+             expires_at),
         )
-    response = JSONResponse({"username": USERNAME, "csrf_token": csrf_token},
+    response = JSONResponse({**profile_details(USERNAME, expires_at), "csrf_token": csrf_token},
                             headers={"Cache-Control": "no-store"})
     response.set_cookie(
         COOKIE, token, max_age=SESSION_SECONDS, path="/", httponly=True,
@@ -125,9 +164,39 @@ def login(body: LoginBody, request: Request):
 @router.get("/session")
 def current_session(request: Request):
     return JSONResponse(
-        {"username": request.state.username, "csrf_token": request.state.csrf_token},
+        {**profile_details(request.state.username, request.state.expires_at),
+         "csrf_token": request.state.csrf_token},
         headers={"Cache-Control": "no-store"},
     )
+
+
+@router.get("/profile")
+def get_profile(request: Request):
+    return profile_details(request.state.username, request.state.expires_at)
+
+
+@router.post("/profile")
+def update_profile(body: ProfileBody, request: Request):
+    name = body.display_name.strip()
+    if not name:
+        return json_error(422, "Le nom affiché ne peut pas être vide.")
+    with state() as db:
+        db.execute(
+            "UPDATE auth_profiles SET display_name = ?, updated_at = ? WHERE username = ?",
+            (name, int(time.time()), request.state.username),
+        )
+    return profile_details(request.state.username, request.state.expires_at)
+
+
+@router.post("/sessions/revoke-others")
+def revoke_other_sessions(request: Request):
+    token_hash = hashlib.sha256(request.cookies[COOKIE].encode()).hexdigest()
+    with state() as db:
+        db.execute(
+            "DELETE FROM auth_sessions WHERE username = ? AND token_hash != ?",
+            (request.state.username, token_hash),
+        )
+    return {"active_sessions": 1}
 
 
 @router.post("/logout")

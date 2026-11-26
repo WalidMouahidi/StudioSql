@@ -127,6 +127,7 @@ La plateforme locale partage l’API et les volumes du projet.
 
 - **Data Sources**. Rechercher les sources, consulter leur dernier test dans le navigateur et tester une connexion SQL Server avant de l’enregistrer.
 - **Studio**. L'arborescence à gauche liste les tables SQL Server. Les onglets **Structure**, **Extraction**, **Éditeur SQL** et **Historique** donnent accès à la table sélectionnée, aux exports, aux requêtes et aux jobs enregistrés. L'onglet **Historique** affiche l'état de chaque job, son emplacement MinIO et sa table Trino.
+- **Profil**. Ouvrir l'avatar en haut à droite pour voir son compte, modifier le nom affiché, consulter les sessions et déconnecter les autres navigateurs. Le mot de passe administrateur reste configuré dans `.env`.
 - **Éditeur SQL**. Sélectionner un export pour préparer une requête, utiliser **Aperçu** ou **Compter**, ou écrire une requête de lecture personnalisée. **Ctrl+Entrée** exécute la requête ; le tableau affiche au plus 200 lignes dans l'interface. L'API `POST /sql/query` accepte jusqu'à 1 000 lignes avec le paramètre `limit`.
 - **Performances**. Filtrer les scénarios mesurés et télécharger les données ou le rapport.
 

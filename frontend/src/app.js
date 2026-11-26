@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const pages = {sources:"Data Sources", workspace:"Studio", explorer:"Studio", "source-new":"Ajouter une connexion SQL Server", overview:"Storage", jobs:"Studio", sql:"Studio", history:"Studio", performance:"Performances"};
+const pages = {sources:"Data Sources", workspace:"Studio", explorer:"Studio", "source-new":"Ajouter une connexion SQL Server", overview:"Storage", jobs:"Studio", sql:"Studio", history:"Studio", performance:"Performances", profile:"Profil"};
 const statuses = {queued:"En attente", running:"En cours", completed:"Terminée", failed:"En erreur"};
 const escape = value => String(value ?? "—").replace(/[&<>"']/g, char =>
   ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[char]);
@@ -15,10 +15,50 @@ const busy = (button, action) => guarded(async () => {
 let sources = [], sourceTables = [], columns = [], jobs = [], records = [];
 let selected = null, exportResult = null, focusedJob = null, routeVersion = 0, jobListVersion = 0, lastSqlExportId = null;
 let authenticated = false, csrfToken = "";
+let profileData = null;
+
+function closeProfileMenu() {
+  $("profile-menu").hidden = true;
+  $("profile-trigger").setAttribute("aria-expanded", "false");
+}
+
+function openProfileMenu() {
+  $("profile-menu").hidden = false;
+  $("profile-trigger").setAttribute("aria-expanded", "true");
+}
+
+function initials(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return (words.length > 1 ? words.slice(0, 2).map(word => word[0]).join("") : words[0]?.slice(0, 2) || "?").toLocaleUpperCase("fr-FR");
+}
+
+function profileDate(seconds) {
+  return new Intl.DateTimeFormat("fr-FR", {dateStyle:"medium", timeStyle:"short"}).format(new Date(seconds * 1000));
+}
+
+function renderProfile(profile) {
+  profileData = profile;
+  const name = profile.display_name || profile.username;
+  for (const id of ["profile-avatar", "profile-menu-avatar", "profile-page-avatar"]) $(id).textContent = initials(name);
+  $("profile-trigger-name").textContent = name;
+  $("profile-menu-name").textContent = name;
+  $("profile-menu-handle").textContent = "@" + profile.username;
+  $("profile-page-name").textContent = name;
+  $("profile-page-handle").textContent = "@" + profile.username;
+  $("profile-display-name").value = name;
+  $("profile-username").textContent = profile.username;
+  $("profile-role").textContent = profile.role;
+  $("profile-session-expiry").textContent = "Expire le " + profileDate(profile.session_expires_at);
+  $("profile-active-sessions").textContent = String(profile.active_sessions);
+  $("profile-updated-at").textContent = "Mis à jour le " + profileDate(profile.updated_at);
+  $("revoke-other-sessions").disabled = profile.active_sessions <= 1;
+}
 
 function showLogin(message = "") {
   authenticated = false;
   csrfToken = "";
+  profileData = null;
+  closeProfileMenu();
   $("app-shell").hidden = true;
   $("auth-loading").hidden = true;
   $("auth-screen").hidden = false;
@@ -33,7 +73,7 @@ function showLogin(message = "") {
 function showApp(session) {
   authenticated = true;
   csrfToken = session.csrf_token;
-  $("current-user").textContent = session.username;
+  renderProfile(session);
   $("auth-screen").hidden = true;
   $("auth-loading").hidden = true;
   $("app-shell").hidden = false;
@@ -307,7 +347,7 @@ async function navigate(preferredExport) {
   const page = Object.hasOwn(pages, location.hash.slice(1)) ? location.hash.slice(1) : "sources";
   const isWorkspace = ["workspace", "explorer", "jobs", "sql", "history"].includes(page);
   const visiblePage = isWorkspace ? "workspace" : page;
-  for (const key of ["sources", "workspace", "source-new", "overview", "performance"]) $(key).hidden = key !== visiblePage;
+  for (const key of ["sources", "workspace", "source-new", "overview", "performance", "profile"]) $(key).hidden = key !== visiblePage;
   for (const item of document.querySelectorAll("[data-page]")) {
     if (item.dataset.page === (page === "source-new" ? "sources" : visiblePage)) item.setAttribute("aria-current", "page");
     else item.removeAttribute("aria-current");
@@ -337,10 +377,11 @@ async function navigate(preferredExport) {
     }
   }
   if (page === "performance") await loadBenchmark();
+  if (page === "profile") renderProfile(await api("/auth/profile"));
 }
 
 let nextExport;
-window.addEventListener("hashchange", () => { const id = nextExport; nextExport = null; if (authenticated) guarded(() => navigate(id)); });
+window.addEventListener("hashchange", () => { const id = nextExport; nextExport = null; closeProfileMenu(); if (authenticated) guarded(() => navigate(id)); });
 document.addEventListener("click", event => {
   const job = event.target.closest("[data-job]");
   if (job) {
@@ -638,7 +679,58 @@ $("auth-form").onsubmit = async event => {
 $("auth-show-password").onchange = () => {
   $("auth-password").type = $("auth-show-password").checked ? "text" : "password";
 };
+$("profile-trigger").onclick = () => {
+  if ($("profile-menu").hidden) openProfileMenu();
+  else closeProfileMenu();
+};
+$("profile-trigger").onkeydown = event => {
+  if (event.key === "ArrowDown") {
+    event.preventDefault();
+    openProfileMenu();
+    $("profile-link").focus();
+  }
+};
+$("profile-menu").onkeydown = event => {
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const items = [$("profile-link"), $("logout-button")];
+  const current = items.indexOf(document.activeElement);
+  const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
+    (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+  items[next].focus();
+};
+$("profile-link").onclick = closeProfileMenu;
+document.addEventListener("click", event => {
+  if (!event.target.closest(".profile-control")) closeProfileMenu();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("profile-menu").hidden) {
+    closeProfileMenu();
+    $("profile-trigger").focus();
+  }
+});
+$("profile-form").onsubmit = event => {
+  event.preventDefault();
+  busy(event.submitter || $("save-profile"), async () => {
+    renderProfile(await api("/auth/profile", {display_name:$("profile-display-name").value.trim()}));
+    notice("Profil enregistré.");
+  });
+};
+$("revoke-other-sessions").onclick = async () => {
+  const button = $("revoke-other-sessions");
+  button.disabled = true;
+  try {
+    await guarded(async () => {
+      const result = await api("/auth/sessions/revoke-others", {});
+      renderProfile({...profileData, active_sessions:result.active_sessions});
+      notice("Les autres sessions ont été déconnectées.");
+    });
+  } finally {
+    button.disabled = !profileData || profileData.active_sessions <= 1;
+  }
+};
 $("logout-button").onclick = async () => {
+  closeProfileMenu();
   try { await api("/auth/logout", {}); showLogin(); }
   catch (error) { if (authenticated) notice(error.message, true); }
 };

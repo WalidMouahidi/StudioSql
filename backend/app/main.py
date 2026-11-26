@@ -94,6 +94,7 @@ async def require_session(request: Request, call_next):
         return auth.json_error(401, "Authentification requise.")
     request.state.username = session["username"]
     request.state.csrf_token = session["csrf_token"]
+    request.state.expires_at = session["expires_at"]
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
         submitted = request.headers.get("x-studiosql-csrf", "")
         if not secrets.compare_digest(submitted, session["csrf_token"]):
