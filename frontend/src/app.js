@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const pages = {sources:"Data Sources", workspace:"Studio SQL", explorer:"Studio SQL", "source-new":"Ajouter une connexion SQL Server", overview:"Storage", jobs:"Studio SQL", sql:"Studio SQL", history:"Studio SQL", performance:"Performances"};
+const pages = {sources:"Data Sources", workspace:"Studio", explorer:"Studio", "source-new":"Ajouter une connexion SQL Server", overview:"Storage", jobs:"Studio", sql:"Studio", history:"Studio", performance:"Performances"};
 const statuses = {queued:"En attente", running:"En cours", completed:"Terminée", failed:"En erreur"};
 const escape = value => String(value ?? "—").replace(/[&<>"']/g, char =>
   ({"&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"})[char]);
@@ -277,7 +277,7 @@ async function navigate(preferredExport) {
   window.scrollTo(0, 0);
   const tab = page === "jobs" ? "extract" : page === "sql" ? "sql" : page === "history" ? "history" : "structure";
   $("breadcrumb").textContent = page === "source-new" ? "Data Sources  ›  " + pages[page] :
-    isWorkspace ? "Studio SQL  ›  " + ({structure:"Structure", extract:"Extraction", sql:"Éditeur SQL", history:"Historique"})[tab] : pages[page];
+    isWorkspace ? "Studio  ›  " + ({structure:"Structure", extract:"Extraction", sql:"Éditeur SQL", history:"Historique"})[tab] : pages[page];
   notice("");
   if (page === "overview") await refreshJobs();
   if (page === "sources") { await refreshSources(); if (current === routeVersion) renderSources(); }
@@ -408,19 +408,19 @@ $("sql-form").onsubmit = event => {
   });
 };
 for (const id of Object.values(benchFilters)) $(id).onchange = renderBenchmark;
-async function refreshHealth() {
-  try { await api("/health"); $("health").textContent = "Services opérationnels"; $("health").className = "online"; }
-  catch { $("health").textContent = "Services indisponibles"; $("health").className = ""; }
-}
 const sourceLabels = {all:"Toutes", connected:"Connectées", failed:"En échec", untested:"Non testées"};
 const sourceStates = {connected:"Connectée", failed:"Échec", running:"Test en cours", untested:"Non testée"};
 let sourceFilter = "all", preferredSource;
 const sourceChecks = Object.create(null);
-try { Object.assign(sourceChecks, JSON.parse(localStorage.getItem("data-platform-source-checks") || "{}")); } catch {}
+const sourceChecksKey = "studiosql-source-checks";
+try { Object.assign(sourceChecks, JSON.parse(localStorage.getItem(sourceChecksKey) || localStorage.getItem("data-platform-source-checks") || "{}")); } catch {}
 
 function storeSourceChecks() {
-  try { localStorage.setItem("data-platform-source-checks", JSON.stringify(
-    Object.fromEntries(Object.entries(sourceChecks).filter(([, test]) => test.state !== "running")))); } catch {}
+  try {
+    localStorage.setItem(sourceChecksKey, JSON.stringify(
+      Object.fromEntries(Object.entries(sourceChecks).filter(([, test]) => test.state !== "running"))));
+    localStorage.removeItem("data-platform-source-checks");
+  } catch {}
 }
 const checkedAt = at => at ? new Intl.DateTimeFormat("fr-FR", {dateStyle:"medium", timeStyle:"short"}).format(new Date(at)) : "Jamais";
 
@@ -576,13 +576,11 @@ resetDraft();
 compressionOptions();
 refreshSelection();
 guarded(navigate);
-refreshHealth();
 let polling = false;
 setInterval(async () => {
   if (polling || document.hidden) return;
   polling = true;
   try {
-    await refreshHealth();
     if (["","#overview","#workspace","#explorer","#jobs","#sql","#history"].includes(location.hash)) {
       await guarded(async () => {
         await refreshJobs();

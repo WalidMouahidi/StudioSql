@@ -123,8 +123,6 @@ nav a[aria-current] {border-color:var(--wire-frame)}
   .sidebar nav {display:grid;overflow:visible;padding:0;gap:3px}
   .sidebar nav a {min-height:23px;padding:4px 5px;gap:4px;font-size:9px;white-space:normal}
   .sidebar nav a .wire-icon {width:11px;height:11px}
-  .sidebar-footer {display:block;font-size:9px}
-  .sidebar-footer #health {margin-top:7px}
   .top {height:29px;min-height:29px;padding:0 12px;font-size:9px}
   .local {font-size:9px}
   .workspace-mark {height:17px;width:17px;font-size:7px}
@@ -173,7 +171,6 @@ nav a[aria-current] {border-color:var(--wire-frame)}
   .brand .logo {width:24px;height:24px}
   .sidebar nav {display:flex;overflow:auto;gap:4px}
   .sidebar nav a {font-size:11px;white-space:nowrap;min-height:33px}
-  .sidebar-footer {display:flex;font-size:10px}
   .top {height:43px;min-height:43px}
   .page {padding:16px 14px 30px}
   #sources h1,#source-new h1 {font-size:21px;line-height:27px}

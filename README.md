@@ -80,7 +80,7 @@ docker compose exec -T trino trino --execute "SELECT invoice_date, count(*) AS i
 
 Appeler la route du résultat après le passage à `completed`. Le schéma source par défaut est `dbo`. Le lot par défaut est de 50 000 lignes. Parquet accepte `snappy` (défaut), `none`, `gzip` et `zstd`. CSV accepte `none` (défaut) et `gzip`.
 
-Un export crée un préfixe `data/<source>/<schéma>/<table>/<job>/` et une table indépendante. Dans **Studio SQL → Extraction**, la liste des colonnes de partition est chargée depuis la table sélectionnée. Une colonne `DATE` forme directement une partition quotidienne, par exemple `invoice_date=2025-01-15/`. Une colonne `DATETIME`, `DATETIME2` ou `SMALLDATETIME` forme une colonne de partition dérivée, par exemple `created_at_day=2025-01-15/` ; l'horodatage `created_at` reste dans les données. Les noms de partition sont normalisés en minuscules dans Hive. Le service synchronise ces partitions avec le métastore avant de signaler la fin du job. Une forte cardinalité augmente le nombre de fichiers et le coût de leur ouverture.
+Un export crée un préfixe `data/<source>/<schéma>/<table>/<job>/` et une table indépendante. Dans **Studio → Extraction**, la liste des colonnes de partition est chargée depuis la table sélectionnée. Une colonne `DATE` forme directement une partition quotidienne, par exemple `invoice_date=2025-01-15/`. Une colonne `DATETIME`, `DATETIME2` ou `SMALLDATETIME` forme une colonne de partition dérivée, par exemple `created_at_day=2025-01-15/` ; l'horodatage `created_at` reste dans les données. Les noms de partition sont normalisés en minuscules dans Hive. Le service synchronise ces partitions avec le métastore avant de signaler la fin du job. Une forte cardinalité augmente le nombre de fichiers et le coût de leur ouverture.
 
 Parquet conserve les types et les valeurs nulles. La précision des horodatages est à la microseconde. Le format CSV expose chaque colonne en `VARCHAR` dans Trino, représente les valeurs nulles par un champ vide et refuse les champs multilignes. Trino peut convertir les colonnes CSV avec `CAST` pour les analyses.
 
@@ -105,11 +105,11 @@ Parquet peut lire uniquement la colonne nécessaire à l'agrégat global, alors 
 
 ## Interface web
 
-Ouvrir [Data Platform](http://localhost:8000/) après `docker compose up --build -d`.
+Ouvrir [StudioSql](http://localhost:8000/) après `docker compose up --build -d`.
 La plateforme locale partage l’API et les volumes du projet.
 
 - **Data Sources**. Rechercher les sources, consulter leur dernier test dans le navigateur et tester une connexion SQL Server avant de l’enregistrer.
-- **Studio SQL**. L'arborescence à gauche liste les tables SQL Server. Les onglets **Structure**, **Extraction**, **Éditeur SQL** et **Historique** donnent accès à la table sélectionnée, aux exports, aux requêtes et aux jobs enregistrés. L'onglet **Historique** affiche l'état de chaque job, son emplacement MinIO et sa table Trino.
+- **Studio**. L'arborescence à gauche liste les tables SQL Server. Les onglets **Structure**, **Extraction**, **Éditeur SQL** et **Historique** donnent accès à la table sélectionnée, aux exports, aux requêtes et aux jobs enregistrés. L'onglet **Historique** affiche l'état de chaque job, son emplacement MinIO et sa table Trino.
 - **Éditeur SQL**. Sélectionner un export pour préparer une requête, utiliser **Aperçu** ou **Compter**, ou écrire une requête de lecture personnalisée. **Ctrl+Entrée** exécute la requête ; le tableau affiche au plus 200 lignes dans l'interface. L'API `POST /sql/query` accepte jusqu'à 1 000 lignes avec le paramètre `limit`.
 - **Performances**. Filtrer les scénarios mesurés et télécharger les données ou le rapport.
 
