@@ -1,10 +1,12 @@
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from threading import Event, Thread
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
+from app import auth
 from app.config import SOURCES
 from app.database import state
 from app.routers import analysis, jobs, performance, sources, sql
@@ -47,6 +49,7 @@ def work(stop, ready):
 
 @asynccontextmanager
 async def lifespan(app):
+    auth.initialize_auth()
     with state() as db:
         db.execute("""
             CREATE TABLE IF NOT EXISTS jobs (
@@ -69,13 +72,35 @@ async def lifespan(app):
         stop.set()
 
 
-app = FastAPI(title="Import SQL Server vers MinIO", lifespan=lifespan)
+app = FastAPI(title="StudioSql API", lifespan=lifespan)
 
+app.include_router(auth.router)
 app.include_router(sources.router)
 app.include_router(jobs.router)
 app.include_router(analysis.router)
 app.include_router(performance.router)
 app.include_router(sql.router)
+
+
+@app.middleware("http")
+async def require_session(request: Request, call_next):
+    if request.method == "GET" and request.url.path == "/health":
+        return await call_next(request)
+    if request.method == "POST" and request.url.path == "/auth/login":
+        return await call_next(request)
+
+    session = auth.session_for(request)
+    if session is None:
+        return auth.json_error(401, "Authentification requise.")
+    request.state.username = session["username"]
+    request.state.csrf_token = session["csrf_token"]
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        submitted = request.headers.get("x-studiosql-csrf", "")
+        if not secrets.compare_digest(submitted, session["csrf_token"]):
+            return auth.json_error(403, "Jeton de session manquant ou invalide.")
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/health")

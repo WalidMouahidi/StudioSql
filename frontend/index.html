@@ -7,10 +7,27 @@
 <link rel="stylesheet" href="/src/style.css">
 <link rel="stylesheet" href="/src/wireframe.css">
 <link rel="stylesheet" href="/src/workspace.css">
+<link rel="stylesheet" href="/src/auth.css">
 <script type="module" src="/src/app.js"></script>
 </head>
 <body>
-<div class="shell">
+<div id="auth-loading" class="auth-loading" role="status">Chargement de StudioSql…</div>
+<section id="auth-screen" class="auth-screen" aria-labelledby="auth-title" hidden>
+  <div class="auth-card">
+    <div class="auth-brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 8 8 4 8-4M4 16l8 4 8-4"/></svg></span><strong>StudioSql</strong></div>
+    <h1 id="auth-title">Connexion</h1>
+    <p>Connectez-vous pour accéder à la plateforme.</p>
+    <form id="auth-form">
+      <label for="auth-username">Identifiant</label>
+      <input id="auth-username" name="username" autocomplete="username" required autofocus>
+      <label for="auth-password">Mot de passe</label>
+      <input id="auth-password" name="password" type="password" autocomplete="current-password" required>
+      <p id="auth-error" class="auth-error" role="alert" hidden></p>
+      <button id="auth-submit" class="primary" type="submit">Se connecter</button>
+    </form>
+  </div>
+</section>
+<div id="app-shell" class="shell" hidden>
 <aside class="sidebar">
   <div class="brand"><span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 4 8 4-8 4-8-4 8-4Zm-8 8 8 4 8-4M4 16l8 4 8-4"/></svg></span><div>StudioSql</div></div>
   <nav aria-label="Navigation principale">
@@ -21,7 +38,7 @@
   </nav>
 </aside>
 <main id="main">
-  <header class="top"><span id="breadcrumb">Data Sources</span><span class="local"><span class="workspace-mark" aria-hidden="true">DL</span> Docker local</span></header>
+  <header class="top"><span id="breadcrumb">Data Sources</span><div class="top-actions"><span id="current-user" class="current-user"></span><span class="local"><span class="workspace-mark" aria-hidden="true">DL</span> Docker local</span><button id="logout-button" class="logout-button" type="button">Se déconnecter</button></div></header>
   <div id="notice" role="status" hidden></div>
   <section id="overview" class="page" hidden>
     <div class="card"><div class="card-head"><h2>Extractions récentes</h2><a href="#history">Voir l’historique</a></div><div id="recent"></div></div>

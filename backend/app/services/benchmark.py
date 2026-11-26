@@ -1,5 +1,6 @@
 import argparse
 import csv
+from http.cookiejar import CookieJar
 import json
 import os
 import random
@@ -8,19 +9,26 @@ from pathlib import Path
 from statistics import median
 from time import monotonic, perf_counter, sleep
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from app.services.ingestion import trino_execute
 
 
+opener = build_opener(HTTPCookieProcessor(CookieJar()))
+csrf_token = ""
+
+
 def api(path, payload=None):
+    headers = {"Content-Type": "application/json"}
+    if payload is not None and path != "/auth/login":
+        headers["X-StudioSql-CSRF"] = csrf_token
     request = Request(
         "http://api:8000" + path,
         data=json.dumps(payload).encode() if payload is not None else None,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     try:
-        with urlopen(request, timeout=30) as response:
+        with opener.open(request, timeout=30) as response:
             return json.load(response)
     except HTTPError as error:
         raise RuntimeError(f"{path} : HTTP {error.code} — {error.read().decode()}") from error
@@ -35,6 +43,15 @@ def wait_ready():
         except (URLError, RuntimeError):
             sleep(2)
     raise TimeoutError("L'API n'est pas prête.")
+
+
+def authenticate():
+    global csrf_token
+    session = api("/auth/login", {
+        "username": os.environ.get("STUDIOSQL_ADMIN_USERNAME", "admin"),
+        "password": os.environ["STUDIOSQL_ADMIN_PASSWORD"],
+    })
+    csrf_token = session["csrf_token"]
 
 
 def extract(spec):
@@ -124,6 +141,7 @@ def main():
         parser.error("Utiliser deux lots distincts de 1 à 250 000 lignes et au moins une répétition.")
 
     wait_ready()
+    authenticate()
     scenarios = list(product(("csv", "parquet"), ("none", "gzip"), (False, True), sorted(args.batches)))
     random.Random(42).shuffle(scenarios)
     records, reference = [], None

@@ -32,7 +32,8 @@ projet-un/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vite.config.ts
-├── .env
+├── .env.example
+├── .env                 # Identifiants locaux, non versionnés
 └── docker-compose.yml
 ```
 
@@ -40,14 +41,18 @@ projet-un/
 
 Docker Desktop doit utiliser des conteneurs Linux. SQL Server Developer cible Linux x86-64. Le premier démarrage télécharge les images et compile MinIO à partir de la version communautaire amont `RELEASE.2025-10-15T17-29-55Z`. Les accès publiés sont limités à la boucle locale.
 
+Copier `.env.example` vers `.env`, puis définir `STUDIOSQL_ADMIN_PASSWORD` avec un mot de passe de 12 caractères minimum. Le compte par défaut est `admin`. Le fichier `.env` reste local et n'est pas publié dans Git.
+
 ```powershell
 docker compose up --build -d
 docker compose logs -f api
 ```
 
-L'API est prête quand `GET http://localhost:8000/health` renvoie `200`. Swagger est accessible sur `http://localhost:8000/docs`. La console MinIO est sur `http://localhost:9001` (utilisateur `localadmin`, mot de passe `localminio2026`). Trino écoute sur `http://localhost:8080`.
+L'API est prête quand `GET http://localhost:8000/health` renvoie `200`. Ouvrir `http://localhost:8000/` pour se connecter. Les routes de l'API et Swagger (`http://localhost:8000/docs`) demandent une session. La console MinIO est sur `http://localhost:9001` (utilisateur `localadmin`, mot de passe `localminio2026`). Trino écoute sur `http://localhost:8080`.
 
-Au premier démarrage, le script crée la base `Billing` avec 1 000 000 de factures, 100 000 clients et 750 000 paiements fictifs. Pour un premier essai plus court, créer un fichier `.env` avec `DEMO_INVOICES=50000` avant de démarrer sur un volume SQL neuf. Le volume existant conserve ses données.
+La connexion crée une session de 12 heures dans un cookie `HttpOnly` et `SameSite=Strict`. Le bouton **Se déconnecter** révoque la session. Une modification de `STUDIOSQL_ADMIN_PASSWORD` suivie d'un redémarrage de l'API révoque aussi les sessions existantes. Pour utiliser l'API directement, appeler `POST /auth/login`, conserver le cookie reçu et transmettre le `csrf_token` retourné dans l'en-tête `X-StudioSql-CSRF` pour les requêtes d'écriture.
+
+Au premier démarrage, le script crée la base `Billing` avec 1 000 000 de factures, 100 000 clients et 750 000 paiements fictifs. Pour un premier essai plus court, définir `DEMO_INVOICES=50000` dans `.env` avant de démarrer sur un volume SQL neuf. Le volume existant conserve ses données.
 
 Pour ajouter des sources, définir `SQL_SOURCES` dans `.env` comme tableau JSON. Exemple de configuration d'une source externe accessible depuis les conteneurs Docker Desktop :
 
@@ -71,9 +76,15 @@ Chaque entrée comporte un identifiant unique. Le compte de lecture SQL doit avo
 | GET | `/storage/jobs/{id}/result` | Emplacement MinIO, table Trino, lignes, fichiers, octets et durées |
 
 ```powershell
-$job = Invoke-RestMethod -Method Post -Uri http://localhost:8000/storage/jobs -ContentType application/json -Body '{"source_id":"sqlserver","table":"Invoice","format":"parquet","partition_by":["invoice_date"]}'
-Invoke-RestMethod "http://localhost:8000/storage/jobs/$($job.id)"
-$result = Invoke-RestMethod "http://localhost:8000/storage/jobs/$($job.id)/result"
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$secret = Read-Host "Mot de passe StudioSql" -AsSecureString
+$credential = New-Object System.Management.Automation.PSCredential("admin", $secret)
+$loginBody = @{ username = $credential.UserName; password = $credential.GetNetworkCredential().Password } | ConvertTo-Json
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:8000/auth/login -ContentType application/json -Body $loginBody -WebSession $session
+$headers = @{ 'X-StudioSql-CSRF' = $login.csrf_token }
+$job = Invoke-RestMethod -Method Post -Uri http://localhost:8000/storage/jobs -ContentType application/json -Headers $headers -WebSession $session -Body '{"source_id":"sqlserver","table":"Invoice","format":"parquet","partition_by":["invoice_date"]}'
+Invoke-RestMethod "http://localhost:8000/storage/jobs/$($job.id)" -WebSession $session
+$result = Invoke-RestMethod "http://localhost:8000/storage/jobs/$($job.id)/result" -WebSession $session
 $result
 docker compose exec -T trino trino --execute "SELECT invoice_date, count(*) AS invoices, sum(amount) AS total FROM $($result.sql_table) WHERE invoice_date = DATE '2025-01-15' GROUP BY invoice_date"
 ```

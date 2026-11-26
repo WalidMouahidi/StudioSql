@@ -14,13 +14,47 @@ const busy = (button, action) => guarded(async () => {
 });
 let sources = [], sourceTables = [], columns = [], jobs = [], records = [];
 let selected = null, exportResult = null, focusedJob = null, routeVersion = 0, jobListVersion = 0, lastSqlExportId = null;
+let authenticated = false, csrfToken = "";
+
+function showLogin(message = "") {
+  authenticated = false;
+  csrfToken = "";
+  $("app-shell").hidden = true;
+  $("auth-loading").hidden = true;
+  $("auth-screen").hidden = false;
+  $("auth-error").hidden = !message;
+  $("auth-error").textContent = message;
+  $("auth-password").value = "";
+  $("auth-username").focus();
+}
+
+function showApp(session) {
+  authenticated = true;
+  csrfToken = session.csrf_token;
+  $("current-user").textContent = session.username;
+  $("auth-screen").hidden = true;
+  $("auth-loading").hidden = true;
+  $("app-shell").hidden = false;
+}
+
+async function checkSession() {
+  try {
+    const response = await fetch("/auth/session", {credentials:"same-origin", cache:"no-store"});
+    if (!response.ok) { showLogin(); return; }
+    showApp(await response.json());
+    await guarded(navigate);
+  } catch {
+    showLogin("Connexion au service indisponible. Réessayez dans un instant.");
+  }
+}
 
 async function api(path, data) {
-  const response = await fetch(path, data === undefined ? {} : {
-    method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data)
+  const response = await fetch(path, data === undefined ? {credentials:"same-origin", cache:"no-store"} : {
+    method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json", "X-StudioSql-CSRF":csrfToken}, body:JSON.stringify(data)
   });
   const payload = await response.json();
   if (!response.ok) {
+    if (response.status === 401) showLogin("Votre session a expiré. Connectez-vous à nouveau.");
     const detail = payload.detail;
     throw new Error(typeof detail === "string" ? detail : Array.isArray(detail)
       ? detail.map(item => item.msg).join(" · ") : detail?.error || "Opération indisponible (" + response.status + ").");
@@ -302,7 +336,7 @@ async function navigate(preferredExport) {
 }
 
 let nextExport;
-window.addEventListener("hashchange", () => { const id = nextExport; nextExport = null; guarded(() => navigate(id)); });
+window.addEventListener("hashchange", () => { const id = nextExport; nextExport = null; if (authenticated) guarded(() => navigate(id)); });
 document.addEventListener("click", event => {
   const job = event.target.closest("[data-job]");
   if (job) {
@@ -575,10 +609,36 @@ resetDraft();
 
 compressionOptions();
 refreshSelection();
-guarded(navigate);
+$("auth-form").onsubmit = async event => {
+  event.preventDefault();
+  const button = $("auth-submit");
+  button.disabled = true;
+  $("auth-error").hidden = true;
+  try {
+    const response = await fetch("/auth/login", {
+      method:"POST", credentials:"same-origin", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({username:$("auth-username").value, password:$("auth-password").value})
+    });
+    const session = await response.json();
+    if (!response.ok) throw new Error(session.detail || "Connexion impossible.");
+    showApp(session);
+    $("auth-password").value = "";
+    await guarded(navigate);
+  } catch (error) {
+    $("auth-error").textContent = error.message;
+    $("auth-error").hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+};
+$("logout-button").onclick = async () => {
+  try { await api("/auth/logout", {}); showLogin(); }
+  catch (error) { if (authenticated) notice(error.message, true); }
+};
+checkSession();
 let polling = false;
 setInterval(async () => {
-  if (polling || document.hidden) return;
+  if (polling || document.hidden || !authenticated) return;
   polling = true;
   try {
     if (["","#overview","#workspace","#explorer","#jobs","#sql","#history"].includes(location.hash)) {
