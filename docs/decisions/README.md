@@ -8,6 +8,7 @@ Ce registre décrit les choix **déjà présents dans le code**. Il sert à comp
 | [ADR 0002](0002-sqlite-job-worker.md) | Jobs SQLite et worker unique dans FastAPI | En vigueur |
 | [ADR 0003](0003-job-snapshots-and-partitioning.md) | Snapshot et table Trino distincts par extraction | En vigueur |
 | [ADR 0004](0004-single-admin-auth.md) | Administrateur unique et sessions applicatives | En vigueur |
+| [ADR 0005](0005-cross-source-trino-cluster.md) | Démo CRM indépendante et cluster Trino à deux workers | En vigueur |
 
 ## Pour une nouvelle décision
 

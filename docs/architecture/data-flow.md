@@ -1,12 +1,14 @@
 # Flux de données et contrats
 
-**État : 26 novembre 2026.** Lire avec [l'architecture système](system.md). Les contrats exacts sont définis par [`backend/app/models.py`](../../backend/app/models.py) et les routes API.
+**État : 28 novembre 2026.** Lire avec [l'architecture système](system.md) et la [démo multi-source](../demo-distributed.md). Les contrats exacts sont définis par [`backend/app/models.py`](../../backend/app/models.py) et les routes API.
 
 ## De la source au job
 
 1. `GET /sources` lit les sources initiales de `SQL_SOURCES` et les sources ajoutées dans SQLite. `GET /sources/{id}/tables` interroge `sys.tables` et `sys.schemas` dans SQL Server. La route des colonnes lit `sys.columns`.
 2. `POST /storage/jobs` accepte une table, `format` (`parquet` ou `csv`), `compression`, `batch_size` (1 à 250 000) et jusqu'à quatre noms de colonnes dans `partition_by`. La route valide l'existence et le type des colonnes ; le schéma source par défaut est `dbo`.
 3. Le job est inséré dans SQLite en état `queued`. Le thread de [`backend/app/main.py`](../../backend/app/main.py) prend le plus ancien job, le marque `running`, appelle `ingest()`, puis écrit `completed` et les métriques ou `failed` et l'erreur.
+
+La configuration Compose fournit par défaut deux sources : `sqlserver` vers `Billing` (`Customer`, `Invoice`, `Payment`) et `crm` vers un second SQL Server (`CRM`, `CustomerProfile`). Le démarrage initialise les profils CRM avec les mêmes `customer_id` que Billing. Chaque source s'extrait séparément ; la jointure entre leurs exports est exécutée ensuite par Trino. L'API ne passe à l'état prêt que lorsque le coordinateur et les deux workers Trino sont actifs.
 
 ```mermaid
 sequenceDiagram
@@ -56,6 +58,8 @@ Après l'envoi des fichiers, `ingest()` exécute `CREATE TABLE ... WITH (format,
 
 L'interface utilise `POST /sql/query` pour envoyer une requête à Trino. Cette route accepte une seule instruction dont le premier mot clé est `SELECT`, `WITH`, `SHOW`, `DESCRIBE`, `EXPLAIN` ou `VALUES`, refuse un point-virgule interne et affiche au plus 200 lignes dans l'UI (limite API : 1 000). `GET /analysis/{job_id}` fournit l'aperçu de 100 lignes ou un `count`, éventuellement filtré sur une partition quotidienne. Ces validations sont applicatives et ne remplacent pas une politique de droits Trino.
 
+Dans l'éditeur SQL, **Démo multi-source** sélectionne deux exports Parquet terminés et construit une jointure `Invoice.customer_id = CustomerProfile.customer_id`. Le bouton **Voir les nœuds Trino** exécute une lecture de `system.runtime.nodes`. Après une requête, **Tâches par worker** utilise son `query_id` pour agréger `system.runtime.tasks` par `node_id`. Les données restent dans un seul MinIO ; les deux workers Trino lisent et calculent les fragments de requête attribués par le coordinateur.
+
 ## Jeu de données et benchmark
 
-[`data/seed.sql`](../../data/seed.sql) crée `dbo.Customer`, `dbo.Invoice`, `dbo.Payment` dans `Billing` au premier démarrage. Avec `DEMO_INVOICES=1000000`, il génère 100 000 clients, 1 000 000 de factures et environ 750 000 paiements. Le script [`backend/app/services/benchmark.py`](../../backend/app/services/benchmark.py) produit 16 scénarios : deux formats × partitionnement oui/non × compression Gzip/aucune × deux tailles de lots. Les mesures sont dans [`data/results/`](../../data/results/) et présentées par `/performance/results`. Les résultats versionnés correspondent à une campagne locale ponctuelle ; ils ne sont pas régénérés automatiquement au démarrage.
+[`data/seed.sql`](../../data/seed.sql) crée `dbo.Customer`, `dbo.Invoice`, `dbo.Payment` dans `Billing` au premier démarrage. Avec `DEMO_INVOICES=1000000`, il génère 100 000 clients, 1 000 000 de factures et environ 750 000 paiements. [`data/seed_crm.sql`](../../data/seed_crm.sql) crée 100 000 profils correspondants dans une seconde instance SQL Server. Le script [`backend/app/services/benchmark.py`](../../backend/app/services/benchmark.py) produit 16 scénarios : deux formats × partitionnement oui/non × compression Gzip/aucune × deux tailles de lots. Les mesures sont dans [`data/results/`](../../data/results/) et présentées par `/performance/results`. Les résultats versionnés correspondent à une campagne locale ponctuelle **antérieure au cluster Trino à deux workers** ; ils ne sont pas régénérés automatiquement au démarrage.

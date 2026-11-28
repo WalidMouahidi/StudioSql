@@ -8,6 +8,15 @@ services:
     volumes:
       - sql-data:/var/opt/mssql
 
+  sqlserver-crm:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "LocalCrm_2026!"
+    volumes:
+      - crm-data:/var/opt/mssql
+
   minio:
     build: ./docker/minio
     command: server /data --console-address ":9001"
@@ -24,7 +33,26 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
+      - ./docker/trino/coordinator.properties:/etc/trino/config.properties:ro
       - ./docker/trino/catalog/lake.properties:/etc/trino/catalog/lake.properties:ro
+
+  trino-worker-1:
+    image: trinodb/trino:476
+    volumes:
+      - ./docker/trino/worker.properties:/etc/trino/config.properties:ro
+      - ./docker/trino/catalog/lake.properties:/etc/trino/catalog/lake.properties:ro
+    depends_on:
+      - trino
+      - minio
+
+  trino-worker-2:
+    image: trinodb/trino:476
+    volumes:
+      - ./docker/trino/worker.properties:/etc/trino/config.properties:ro
+      - ./docker/trino/catalog/lake.properties:/etc/trino/catalog/lake.properties:ro
+    depends_on:
+      - trino
+      - minio
 
   api:
     build:
@@ -35,13 +63,17 @@ services:
     environment:
       STUDIOSQL_ADMIN_USERNAME: "${STUDIOSQL_ADMIN_USERNAME:-admin}"
       STUDIOSQL_ADMIN_PASSWORD: "${STUDIOSQL_ADMIN_PASSWORD:?Set STUDIOSQL_ADMIN_PASSWORD in .env}"
-      SQL_SOURCES: '${SQL_SOURCES:-[{"id":"sqlserver","host":"sqlserver","user":"sa","password":"LocalSql_2026!","database":"Billing"}]}'
+      SQL_SOURCES: '${SQL_SOURCES:-[{"id":"sqlserver","host":"sqlserver","user":"sa","password":"LocalSql_2026!","database":"Billing"},{"id":"crm","host":"sqlserver-crm","user":"sa","password":"LocalCrm_2026!","database":"CRM"}]}'
       SEED_DEMO: "${SEED_DEMO:-1}"
       DEMO_INVOICES: "${DEMO_INVOICES:-1000000}"
+      TRINO_MIN_NODES: "3"
     depends_on:
       - sqlserver
+      - sqlserver-crm
       - minio
       - trino
+      - trino-worker-1
+      - trino-worker-2
     volumes:
       - job-data:/state
       - ./data/results:/results
@@ -55,5 +87,6 @@ services:
 
 volumes:
   sql-data:
+  crm-data:
   object-data:
   job-data:

@@ -1,10 +1,10 @@
-# Analyse des factures avec SQL Server, MinIO et Trino
+# StudioSql — analyse de deux sources SQL Server avec MinIO et Trino
 
-Le service FastAPI découvre les tables SQL Server et extrait une table à la fois avec un curseur par lots. Il écrit des objets Parquet ou CSV dans MinIO puis crée une table externe dans le catalogue Hive `lake` de Trino. Le métastore Hive sur fichiers est persisté dans MinIO sous `s3://warehouse/catalog/`. Les jobs et leurs résultats sont persistés dans SQLite.
+Le service FastAPI découvre les tables de deux SQL Server et extrait une table à la fois avec un curseur par lots. Il écrit des objets Parquet ou CSV dans MinIO puis crée une table externe dans le catalogue Hive `lake` de Trino. Le métastore Hive sur fichiers est persisté dans MinIO sous `s3://warehouse/catalog/`. Les jobs et leurs résultats sont persistés dans SQLite. Trino utilise un coordinateur et deux workers locaux pour exécuter les requêtes.
 
 ## Références pour comprendre et faire évoluer le projet
 
-Commencer par le [contexte technique court](CONTEXT.md) avant de parcourir le code. Les vues d'[architecture système](docs/architecture/system.md) et de [flux de données](docs/architecture/data-flow.md) décrivent les composants et le parcours d'un job. Le [registre des décisions](docs/decisions/README.md) explique les choix techniques en vigueur ; le [suivi d'évolution](docs/evolution.md) sépare les capacités implémentées des pistes à étudier. Les [consignes du dépôt](AGENTS.md) indiquent comment maintenir ces références à jour.
+Commencer par le [contexte technique court](CONTEXT.md) avant de parcourir le code. Les vues d'[architecture système](docs/architecture/system.md) et de [flux de données](docs/architecture/data-flow.md) décrivent les composants et le parcours d'un job. Le [guide de démonstration distribuée](docs/demo-distributed.md) détaille la jointure entre deux sources et la vérification des workers. Le [registre des décisions](docs/decisions/README.md) explique les choix techniques en vigueur ; le [suivi d'évolution](docs/evolution.md) sépare les capacités implémentées des pistes à étudier. Les [consignes du dépôt](AGENTS.md) indiquent comment maintenir ces références à jour.
 
 ## Structure
 
@@ -23,11 +23,12 @@ projet-un/
 │   └── requirements.txt
 ├── data/
 │   ├── seed.sql         # Génération des données Billing
+│   ├── seed_crm.sql     # Profils clients sur le second SQL Server
 │   └── results/         # Rapports de performance
 ├── docker/
 │   ├── hive-metastore/ # Documentation du catalogue Hive sur fichiers
 │   ├── minio/
-│   └── trino/catalog/
+│   └── trino/           # Catalogue, coordinateur et workers
 ├── frontend/
 │   ├── src/             # Interface du wireframe
 │   ├── Dockerfile
@@ -58,11 +59,17 @@ docker compose up --build -d
 docker compose logs -f api
 ```
 
-L'API est prête quand `GET http://localhost:8000/health` renvoie `200`. Ouvrir `http://localhost:8000/` pour se connecter. Les routes de l'API et Swagger (`http://localhost:8000/docs`) demandent une session. La console MinIO est sur `http://localhost:9001` (utilisateur `localadmin`, mot de passe `localminio2026`). Trino écoute sur `http://localhost:8080`.
+L'API est prête quand `GET http://localhost:8000/health` renvoie `200`. Elle attend notamment les trois nœuds Trino actifs ; le démarrage initial peut prendre plusieurs minutes. Ouvrir `http://localhost:8000/` pour se connecter. Les routes de l'API et Swagger (`http://localhost:8000/docs`) demandent une session. La console MinIO est sur `http://localhost:9001` (utilisateur `localadmin`, mot de passe `localminio2026`). Le coordinateur Trino écoute sur `http://localhost:8080` ; ses deux workers ne publient pas de port hôte.
 
 La connexion crée une session de 12 heures dans un cookie `HttpOnly` et `SameSite=Strict`. Le bouton **Se déconnecter** révoque la session. Une modification de `STUDIOSQL_ADMIN_PASSWORD` suivie d'un redémarrage de l'API révoque aussi les sessions existantes. Pour utiliser l'API directement, appeler `POST /auth/login`, conserver le cookie reçu et transmettre le `csrf_token` retourné dans l'en-tête `X-StudioSql-CSRF` pour les requêtes d'écriture.
 
-Au premier démarrage, le script crée la base `Billing` avec 1 000 000 de factures, 100 000 clients et 750 000 paiements fictifs. Pour un premier essai plus court, définir `DEMO_INVOICES=50000` dans `.env` avant de démarrer sur un volume SQL neuf. Le volume existant conserve ses données.
+Au premier démarrage, le script crée la base `Billing` avec 1 000 000 de factures, 100 000 clients et 750 000 paiements fictifs. Un second SQL Server héberge `CRM.dbo.CustomerProfile` avec 100 000 profils aux mêmes `customer_id`, pour la jointure entre sources. Pour un premier essai plus court, définir `DEMO_INVOICES=50000` dans `.env` avant de démarrer sur un volume SQL neuf. Les volumes existants conservent leurs données.
+
+## Démontrer deux sources et les workers Trino
+
+La liste des sources inclut par défaut `sqlserver` (Billing) et `crm` (CRM). Dans **Studio**, extraire `dbo.Invoice` depuis Billing et `dbo.CustomerProfile` depuis CRM en Parquet. Quand les deux jobs sont terminés, l'**Éditeur SQL → Démo multi-source** propose leurs exports et prépare la jointure sur `customer_id`. Le bouton **Voir les nœuds Trino** montre un coordinateur et deux workers ; **Tâches par worker** affiche les tâches réellement exécutées sur chacun pour la requête choisie. Voir le [guide détaillé](docs/demo-distributed.md).
+
+Les trois nœuds Trino tournent en conteneurs sur le même ordinateur ; MinIO reste mononœud. Cette démonstration montre un calcul SQL réparti entre workers, pas un stockage distribué sur plusieurs machines. Un `SQL_SOURCES` défini dans `.env` remplace la liste de sources par défaut : inclure les deux entrées si la démo doit rester disponible.
 
 Pour ajouter des sources, définir `SQL_SOURCES` dans `.env` comme tableau JSON. Exemple de configuration d'une source externe accessible depuis les conteneurs Docker Desktop :
 
@@ -107,7 +114,7 @@ Parquet conserve les types et les valeurs nulles. La précision des horodatages 
 
 ## Comparer les performances
 
-La campagne sur un million de factures est disponible dans le [rapport mesuré](data/results/benchmark.md) et le [CSV détaillé](data/results/benchmark.csv). Pour la reproduire avec les données de démonstration chargées, lancer :
+La campagne sur un million de factures est disponible dans le [rapport mesuré](data/results/benchmark.md) et le [CSV détaillé](data/results/benchmark.csv). **Ces mesures ont été produites avant l'ajout des deux workers Trino** et ne mesurent pas le nouveau cluster. Pour refaire une campagne avec la configuration actuelle, lancer :
 
 ```powershell
 docker compose exec -T api python -m app.services.benchmark

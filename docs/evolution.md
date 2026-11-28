@@ -1,6 +1,6 @@
 # Évolution du projet
 
-**Référence au 26 novembre 2026.** Cette page organise l'état du produit et les pistes techniques ; elle ne fixe ni calendrier ni engagement d'implémentation. Les choix déjà matérialisés sont détaillés dans les [décisions](decisions/README.md). Le [contexte court](../CONTEXT.md) résume l'architecture.
+**Référence au 28 novembre 2026.** Cette page organise l'état du produit et les pistes techniques ; elle ne fixe ni calendrier ni engagement d'implémentation. Les choix déjà matérialisés sont détaillés dans les [décisions](decisions/README.md). Le [contexte court](../CONTEXT.md) résume l'architecture.
 
 ## État actuel
 
@@ -13,6 +13,8 @@
 | Suivre les jobs et consulter leur résultat | Implémenté | [`main.py`](../backend/app/main.py), [`jobs.py`](../backend/app/routers/jobs.py) |
 | Authentification locale et profil administrateur | Implémenté | [`auth.py`](../backend/app/auth.py), [ADR 0004](decisions/0004-single-admin-auth.md) |
 | Comparer 16 scénarios de stockage | Implémenté | [`benchmark.py`](../backend/app/services/benchmark.py), `data/results/` |
+| Joindre les exports de deux serveurs SQL Server | Implémenté | [Démo multi-source](demo-distributed.md), [ADR 0005](decisions/0005-cross-source-trino-cluster.md) |
+| Répartir les tâches SQL sur deux workers Trino locaux | Implémenté | [`docker-compose.yml`](../docker-compose.yml), [ADR 0005](decisions/0005-cross-source-trino-cluster.md) |
 
 ## Pistes à instruire
 
@@ -22,7 +24,8 @@
 | Relance et nettoyage | Définir l'idempotence d'un job et la durée de conservation des fichiers sans table. | Un job échoué peut être relancé explicitement ; les objets orphelins sont détectés et traités sans toucher aux snapshots valides. |
 | Évolution du schéma | Définir les changements admis côté source et leur traduction dans Parquet/Trino. | Ajout, changement compatible et changement incompatible ont chacun un comportement documenté et vérifié. |
 | Apache Iceberg | Évaluer un catalogue Iceberg, les transactions et le remplacement éventuel du métastore Hive `file`. | Un scénario bout en bout crée, met à jour et interroge une table Iceberg ; le benchmark la compare aux snapshots Hive existants. |
-| Concurrence et exploitation | Décider si plusieurs workers ou instances sont nécessaires. | Aucun job n'est exécuté deux fois sous concurrence ; l'état reste cohérent après arrêt brutal. |
+| Concurrence de l'ingestion | Décider si plusieurs workers **d'ingestion FastAPI** ou instances API sont nécessaires. | Aucun job n'est exécuté deux fois sous concurrence ; l'état reste cohérent après arrêt brutal. |
+| Distribution multi-hôtes du stockage et du calcul | Étudier MinIO distribué ou S3 externe, placement des nœuds Trino et tolérance aux pannes. | Perte d'un hôte supportée selon un scénario documenté ; les données restent disponibles. |
 | Sécurité des sources et multiutilisateur | Définir un coffre de secrets, des rôles et les limites de l'accès SQL direct à Trino/MinIO. | Les identifiants des sources ne sont plus stockés en clair dans SQLite ; les droits sont testés de bout en bout. |
 | Observabilité et vérifications automatiques | Ajouter des mesures fiables du pipeline et des tests aux frontières SQL Server, MinIO et Trino. | Les échecs sont identifiables par job ; les contrats d'extraction et de catalogue sont vérifiés automatiquement. |
 

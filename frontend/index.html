@@ -90,6 +90,10 @@
           <div class="studio-panel-head"><h2>Éditeur SQL</h2><span>Catalogue lake · schéma billing</span></div>
           <form id="sql-form">
             <div class="studio-query-toolbar"><label>Export terminé<select id="sql-export"></select></label><button class="secondary" id="query-preview" type="button">Aperçu</button><button class="secondary" id="query-count" type="button">Compter</button></div>
+            <div class="studio-cross-source" aria-label="Démonstration multi-source">
+              <strong>Démo multi-source</strong>
+              <div class="studio-cross-source-fields"><label>Factures · SQL Server Billing<select id="sql-join-invoice"></select></label><label>Profils · SQL Server CRM<select id="sql-join-profile"></select></label><button class="secondary" id="sql-build-join" type="button">Préparer la jointure</button><button class="secondary" id="sql-show-nodes" type="button">Voir les nœuds Trino</button></div>
+            </div>
             <div class="studio-query-filter"><label>Colonne de partition<select id="sql-partition"></select></label><label>Filtrer par date<input id="sql-date" type="date"></label></div>
             <label class="studio-editor-label" for="sql-editor">Requête SQL</label><textarea id="sql-editor" spellcheck="false" placeholder="SELECT * FROM lake.billing.job_... LIMIT 100;" required></textarea>
             <div class="studio-query-actions"><span>Requêtes de lecture · 200 lignes affichées au maximum</span><button id="run-query" class="primary" type="submit">▶ Exécuter</button></div>

@@ -292,6 +292,20 @@ async function refreshSqlExports(preferred) {
     job.request.table + " · " + job.request.format.toUpperCase() + " · " + job.id.slice(0, 8))));
   if (done.some(job => job.id === prior)) $("sql-export").value = prior;
   else if (done.length && !$("sql-editor").value.trim()) $("sql-export").value = done[0].id;
+  for (const [selectId, sourceId, tableName] of [
+    ["sql-join-invoice", "sqlserver", "Invoice"],
+    ["sql-join-profile", "crm", "CustomerProfile"]
+  ]) {
+    const select = $(selectId);
+    const previous = select.value;
+    const available = done.filter(job => job.request.source_id === sourceId &&
+      job.request.table === tableName && job.request.format === "parquet");
+    select.replaceChildren(option("", "Exporter " + tableName + " en Parquet"),
+      ...available.map(job => option(job.id, tableName + " · " + job.id.slice(0, 8))));
+    if (available.some(job => job.id === previous)) select.value = previous;
+    else if (available.length) select.value = available[0].id;
+  }
+  $("sql-build-join").disabled = !$("sql-join-invoice").value || !$("sql-join-profile").value;
   await chooseExport();
 }
 
@@ -383,6 +397,13 @@ async function navigate(preferredExport) {
 let nextExport;
 window.addEventListener("hashchange", () => { const id = nextExport; nextExport = null; closeProfileMenu(); if (authenticated) guarded(() => navigate(id)); });
 document.addEventListener("click", event => {
+  const task = event.target.closest("[data-task-query]");
+  if (task) {
+    $("sql-editor").value = "SELECT node_id, count(*) AS tasks, sum(completed_splits) AS splits " +
+      "FROM system.runtime.tasks WHERE query_id = '" + task.dataset.taskQuery +
+      "' GROUP BY node_id ORDER BY node_id;";
+    $("sql-form").requestSubmit();
+  }
   const job = event.target.closest("[data-job]");
   if (job) {
     focusedJob = job.dataset.job;
@@ -462,6 +483,20 @@ $("refresh-jobs").onclick = () => guarded(async () => { await refreshJobs(); if 
 $("sql-export").onchange = () => guarded(chooseExport);
 $("query-preview").onclick = () => setQueryTemplate("preview");
 $("query-count").onclick = () => setQueryTemplate("count");
+$("sql-build-join").onclick = () => busy($("sql-build-join"), async () => {
+  const [invoice, profile] = await Promise.all([
+    api("/storage/jobs/" + $("sql-join-invoice").value + "/result"),
+    api("/storage/jobs/" + $("sql-join-profile").value + "/result")
+  ]);
+  $("sql-editor").value = `SELECT p.segment, count(*) AS factures, sum(i.amount) AS montant_total\n` +
+    `FROM ${invoice.sql_table} AS i\nJOIN ${profile.sql_table} AS p\n` +
+    `  ON i.customer_id = p.customer_id\nGROUP BY p.segment\nORDER BY montant_total DESC;`;
+  $("sql-editor").focus();
+});
+$("sql-show-nodes").onclick = () => {
+  $("sql-editor").value = "SELECT node_id, coordinator, state FROM system.runtime.nodes ORDER BY coordinator DESC, node_id;";
+  $("sql-form").requestSubmit();
+};
 $("sql-editor").onkeydown = event => {
   if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
@@ -475,9 +510,14 @@ $("sql-form").onsubmit = event => {
     $("sql-output").innerHTML = '<p class="muted">Exécution de la requête dans Trino…</p>';
     try {
       const output = await api("/sql/query", {sql:$("sql-editor").value, limit:200});
+      const queryId = String(output.query_id || "");
+      const taskButton = /^[a-zA-Z0-9_]+$/.test(queryId) ?
+        '<button class="secondary" type="button" data-task-query="' + escape(queryId) + '">Tâches par worker</button>' : "";
       $("sql-output").innerHTML = '<div class="studio-results-head"><h3>Résultat de la requête</h3><span>' +
         number(output.row_count) + ' lignes · ' + number(output.elapsed_ms) + ' ms' +
+        (output.trino_nodes ? ' · ' + number(output.trino_nodes) + ' nœuds Trino' : '') +
         (output.truncated ? ' · Affichage limité à 200 lignes' : '') + '</span></div>' +
+        (queryId ? '<div class="studio-query-id"><code>' + escape(queryId) + '</code>' + taskButton + '</div>' : '') +
         (output.rows.length ? table(output.columns, output.rows.map(row => row.map(cell =>
           escape(typeof cell === "object" && cell !== null ? JSON.stringify(cell) : cell)))) :
           empty("Aucune ligne retournée."));

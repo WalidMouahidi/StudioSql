@@ -1,6 +1,7 @@
 import csv
 import gzip
 import io
+import os
 from datetime import datetime
 from collections import defaultdict
 from contextlib import closing
@@ -37,6 +38,10 @@ def initialize():
     if not OBJECTS.bucket_exists(BUCKET):
         OBJECTS.make_bucket(BUCKET)
     trino_execute("CREATE SCHEMA IF NOT EXISTS lake.billing")
+    minimum = int(os.getenv("TRINO_MIN_NODES", "1"))
+    nodes, _ = trino_execute("SELECT count(*) FROM system.runtime.nodes WHERE state = 'active'")
+    if nodes[0][0] < minimum:
+        raise RuntimeError(f"Cluster Trino incomplet : {nodes[0][0]}/{minimum} nœuds actifs.")
 
 
 def tables(source_id):

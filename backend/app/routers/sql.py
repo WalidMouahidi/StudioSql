@@ -35,6 +35,7 @@ def execute_read_query(request: SqlQueryRequest):
                 truncated = len(rows) > request.limit
                 rows = rows[:request.limit]
                 stats = cursor.stats or {}
+                query_id = cursor.query_id
     except Exception as error:
         raise HTTPException(400, f"Trino : {error}") from error
 
@@ -43,6 +44,8 @@ def execute_read_query(request: SqlQueryRequest):
         "rows": jsonable_encoder(rows, custom_encoder={Decimal: str}),
         "row_count": len(rows),
         "truncated": truncated,
+        "query_id": query_id,
+        "trino_nodes": stats.get("nodes"),
         "elapsed_ms": round((perf_counter() - started) * 1000),
         "trino_elapsed_ms": stats.get("elapsedTimeMillis"),
     }
